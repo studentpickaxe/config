@@ -1,6 +1,6 @@
 # Enterprise Config Library
 
-企业级、高稳定性的 Java 配置管理库，同时支持 **JSON5**（带注释）和 **YAML** 格式。
+Java 配置管理库，同时支持 **JSON5**（带注释）和 **YAML** 格式。
 
 ---
 
