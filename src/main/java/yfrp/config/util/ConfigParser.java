@@ -1,13 +1,16 @@
 package yfrp.config.util;
 
-import yfrp.config.format.ConfigFormat;
+import org.hjson.JsonArray;
 import org.hjson.JsonObject;
 import org.hjson.JsonValue;
-import org.hjson.JsonArray;
 import org.yaml.snakeyaml.Yaml;
+import yfrp.config.format.ConfigFormat;
 
 import java.io.StringReader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 将 JSON5 或 YAML 文本解析为平铺的 {@code Map<String, Object>}。<br>
@@ -46,11 +49,17 @@ public final class ConfigParser {
         }
     }
 
-    private static void flattenJson(JsonObject obj, String prefix, Map<String, Object> flat) {
+    private static void flattenJson(JsonObject obj,
+                                    String prefix,
+                                    Map<String, Object> flat)
+    {
         for (JsonObject.Member member : obj) {
-            String key = prefix.isEmpty() ? member.getName() : prefix + "." + member.getName();
+            String    key = prefix.isEmpty() ? member.getName() : prefix + "." + member.getName();
             JsonValue val = member.getValue();
             if (val.isObject()) {
+                // 保留整个对象本身（供 MAP 类型配置项使用）
+                flat.put(key, jsonObjectToMap(val.asObject()));
+                // 继续递归展开
                 flattenJson(val.asObject(), key, flat);
             } else if (val.isArray()) {
                 flat.put(key, jsonArrayToList(val.asArray()));
@@ -58,6 +67,21 @@ public final class ConfigParser {
                 flat.put(key, jsonScalar(val));
             }
         }
+    }
+
+    private static Map<String, Object> jsonObjectToMap(JsonObject obj) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (JsonObject.Member member : obj) {
+            JsonValue val = member.getValue();
+            if (val.isObject()) {
+                map.put(member.getName(), jsonObjectToMap(val.asObject()));
+            } else if (val.isArray()) {
+                map.put(member.getName(), jsonArrayToList(val.asArray()));
+            } else {
+                map.put(member.getName(), jsonScalar(val));
+            }
+        }
+        return map;
     }
 
     private static List<Object> jsonArrayToList(JsonArray arr) {
@@ -111,11 +135,17 @@ public final class ConfigParser {
     }
 
     @SuppressWarnings("unchecked")
-    private static void flattenYaml(Map<String, Object> map, String prefix, Map<String, Object> flat) {
+    private static void flattenYaml(Map<String, Object> map,
+                                    String prefix,
+                                    Map<String, Object> flat)
+    {
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object val = entry.getValue();
             if (val instanceof Map<?, ?> nested) {
+                // 保留整个 map 本身（供 MAP 类型配置项使用）
+                flat.put(key, new LinkedHashMap<>((Map<String, Object>) nested));
+                // 继续递归展开（供普通嵌套 key 使用）
                 flattenYaml((Map<String, Object>) nested, key, flat);
             } else if (val instanceof List<?> list) {
                 flat.put(key, normalizeList(list));

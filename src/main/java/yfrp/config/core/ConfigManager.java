@@ -24,9 +24,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * 企业级配置管理器。
- * Enterprise-grade configuration manager.
- *
  * <h3>使用示例 / Usage Example</h3>
  * <pre>{@code
  * // 定义配置项枚举 / Define entry enum
@@ -428,6 +425,24 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
     @NotNull
     public List<ConfigDateTime> getDateTimeList(@NotNull E key) {
         return getListOrDefault(key, ConfigValueType.LIST_DATETIME);
+    }
+
+    /**
+     * 获取 Map 值<br>
+     * Get map value
+     */
+    @NotNull
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getMap(@NotNull E key) {
+        Object v = requireValue(key, ConfigValueType.MAP);
+        if (v instanceof Map<?, ?> m) {
+            return Collections.unmodifiableMap((Map<String, Object>) m);
+        }
+        Object def = key.getEntry().getDefaultValue();
+        if (def instanceof Map<?, ?> m) {
+            return Collections.unmodifiableMap((Map<String, Object>) m);
+        }
+        return Collections.emptyMap();
     }
 
     @SuppressWarnings("unchecked")

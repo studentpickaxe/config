@@ -3,7 +3,6 @@ package yfrp.config.util;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import yfrp.config.core.ConfigManager;
 import yfrp.config.type.ConfigDateTime;
 import yfrp.config.type.ConfigDuration;
 import yfrp.config.type.ConfigValueType;
@@ -11,6 +10,7 @@ import yfrp.config.type.ConfigValueType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 配置值类型转换工具。<br>
@@ -25,7 +25,7 @@ import java.util.List;
  */
 public final class ValueConverter {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigManager.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ValueConverter.class);
 
     private ValueConverter() {
     }
@@ -60,6 +60,7 @@ public final class ValueConverter {
             case LIST_DURATION -> toList(raw, ConfigValueType.DURATION);
             case LIST_DATETIME -> toList(raw, ConfigValueType.DATETIME);
             case LIST_BOOLEAN -> toList(raw, ConfigValueType.BOOLEAN);
+            case MAP -> toMap(raw);
         };
     }
 
@@ -190,6 +191,21 @@ public final class ValueConverter {
             }
         }
         return result;
+    }
+
+    // ── Map converter ─────────────────────────────────────────────────────────
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> toMap(@Nullable Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof Map<?, ?> m) {
+            return (Map<String, Object>) m;
+        }
+        LOGGER.debug("Discarding non-map value: {}", raw);
+        return null;
     }
 
     // ── Range check ───────────────────────────────────────────────────────────

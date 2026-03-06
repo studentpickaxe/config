@@ -1,8 +1,8 @@
 package yfrp.config.entry;
 
-import yfrp.config.type.ConfigValueType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import yfrp.config.type.ConfigValueType;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -38,11 +38,6 @@ public final class ConfigEntry<T> {
         this.noReload = builder.noReload;
         this.defaultValue = Objects.requireNonNull(builder.defaultValue, "defaultValue must not be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "valueType must not be null");
-        // min/max must be both present or both absent
-        if ((builder.minValue == null) != (builder.maxValue == null)) {
-            throw new IllegalArgumentException(
-                    "Entry '" + builder.id + "': minValue and maxValue must be both set or both null");
-        }
         this.minValue = (Comparable<Object>) builder.minValue;
         this.maxValue = (Comparable<Object>) builder.maxValue;
     }
@@ -69,6 +64,10 @@ public final class ConfigEntry<T> {
                 throw new IllegalArgumentException(
                         "id segment '" + part + "' in id '" + id + "' must not be blank or whitespace-only");
             }
+        }
+        if ("version".equals(id)) {
+            throw new IllegalArgumentException(
+                    "id 'version' is reserved and cannot be used as a config entry id");
         }
         return id;
     }
@@ -142,7 +141,7 @@ public final class ConfigEntry<T> {
      * Whether range constraints are defined
      */
     public boolean hasRange() {
-        return minValue != null; /* maxValue is always paired */
+        return minValue != null || maxValue != null;
     }
 
     // ── Builder ───────────────────────────────────────────────────────────────
@@ -177,6 +176,11 @@ public final class ConfigEntry<T> {
 
         public Builder<T> comment(@Nullable String comment) {
             this.comment = comment;
+            return this;
+        }
+
+        public Builder<T> comment(@Nullable String @NotNull ... comment) {
+            this.comment = String.join("\n", comment);
             return this;
         }
 
