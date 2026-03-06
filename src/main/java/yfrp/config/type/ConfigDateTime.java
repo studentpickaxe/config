@@ -1,6 +1,9 @@
 package yfrp.config.type;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
@@ -40,8 +43,13 @@ public record ConfigDateTime(LocalDateTime value)
     }
 
     @Override
-    public String toString() {
+    public @NotNull String toString() {
         return value.format(FORMATTER);
+    }
+
+    public long getTimestamp() {
+        return value().atZone(ZoneId.systemDefault())
+                .toEpochSecond();
     }
 
     @Override
