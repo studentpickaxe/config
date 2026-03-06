@@ -2,8 +2,6 @@ package yfrp.config.core;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import yfrp.config.entry.ConfigEntry;
 import yfrp.config.format.ConfigFormat;
 import yfrp.config.type.ConfigDateTime;
@@ -59,11 +57,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigManager.class);
-
     private final Path         configPath;
     private final ConfigFormat format;
     private final E[]          enumConstants;
+
+    @Nullable
+    private final ConfigEventHandler handler;
+
+    @NotNull
+    private final ValueConverter valueConverter;
 
     /**
      * 当前配置值（平铺 key → 转换后的 Java 值）
@@ -88,7 +90,8 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
      */
     public ConfigManager(@NotNull Path configPath,
                          @NotNull ConfigFormat format,
-                         @NotNull Class<E> enumClass)
+                         @NotNull Class<E> enumClass,
+                         @Nullable ConfigEventHandler handler)
     {
         this.configPath = Objects.requireNonNull(configPath, "configPath");
         this.format = Objects.requireNonNull(format, "format");
@@ -96,6 +99,8 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         if (this.enumConstants == null || this.enumConstants.length == 0) {
             throw new IllegalArgumentException("Enum " + enumClass.getName() + " has no constants");
         }
+        this.handler = handler;
+        this.valueConverter = new ValueConverter(handler);
         validateEntries();
     }
 
@@ -113,60 +118,51 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // Load / Save
-    // ══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// Reload（唯一的公开 load/save 入口）
+// ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * 从磁盘加载配置。若文件不存在则以默认值创建。<br>
-     * Load config from disk. If the file doesn't exist, create it with defaults.
+     * 重载配置：若文件不存在则以默认值创建，否则读取文件并回写（补全缺失键/刷新注释）。<br>
+     * Reload config: create with defaults if file absent, otherwise read then write back.
      *
      * @throws IOException on I/O failure
      */
-    public void load() throws IOException {
+    public void reload()
+            throws IOException
+    {
         rwLock.writeLock().lock();
         try {
+            String abs = configPath.toAbsolutePath().toString();
             if (!Files.exists(configPath)) {
-                LOGGER.info("Config file not found, creating with defaults: {}", configPath);
                 applyDefaults(true);
-                save();
+                saveInternal();
                 loaded = true;
+                if (handler != null) {
+                    handler.onFileCreated(abs);
+                }
                 return;
             }
             String              text    = Files.readString(configPath, StandardCharsets.UTF_8);
             Map<String, Object> rawFlat = ConfigParser.parse(text, format);
-            mergeValues(rawFlat, !loaded /* firstLoad */);
+            mergeValues(rawFlat, !loaded);
             loaded = true;
-            // Always save back to ensure any missing keys / comments are written
-            save();
-            LOGGER.info("Config loaded from: {}", configPath);
+            saveInternal();
+            if (handler != null) {
+                handler.onReloaded(abs);
+            }
         } finally {
             rwLock.writeLock().unlock();
         }
     }
 
-    /**
-     * 将当前值保存到磁盘。<br>
-     * Save current values to disk.
-     *
-     * @throws IOException on I/O failure
-     */
-    public void save() throws IOException {
-        rwLock.readLock().lock();
-        try {
-            saveInternal();
-        } finally {
-            rwLock.readLock().unlock();
-        }
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // Internal save
+    // ══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * 不加锁的内部保存实现，供已持有锁的方法调用。<br>
-     * Lock-free internal save, called by methods that already hold a lock.
-     *
-     * @throws IOException on I/O failure
-     */
-    private void saveInternal() throws IOException {
+    private void saveInternal()
+            throws IOException
+    {
         Path parent = configPath.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -180,7 +176,6 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         String text = ConfigSerializer.serialize(
                 Collections.unmodifiableMap(values), entries, format);
 
-        // 原子写入：先写 .tmp 再 ATOMIC_MOVE
         Path tmp = configPath.resolveSibling(configPath.getFileName() + ".tmp");
         Files.writeString(tmp, text, StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -194,34 +189,25 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
                              boolean firstLoad)
     {
         for (E e : enumConstants) {
-            ConfigEntry<?> entry    = e.getEntry();
-            String         id       = entry.getId();
-            boolean        isLocked = lockedKeys.contains(id);
+            ConfigEntry<?> entry = e.getEntry();
+            String         id    = entry.getId();
 
-            if (isLocked) {
-                // noReload after first load → keep existing value, skip update
-                LOGGER.debug("Skipping no-reload entry on reload: {}",
-                        id
-                );
+            if (lockedKeys.contains(id)) {
                 continue;
             }
 
             Object raw       = rawFlat.get(id);
-            Object converted = (raw != null) ? convert(raw, entry) : null;
+            Object converted = (raw != null) ? valueConverter.convert(raw, entry.getValueType()) : null;
 
             if (converted != null && checkRange(converted, entry)) {
                 values.put(id, converted);
             } else {
-                if (raw != null) {
-                    LOGGER.warn("Config entry '{}': value '{}' is invalid or out of range, using default.",
-                            id,
-                            raw
-                    );
+                if (raw != null && handler != null) {
+                    handler.onOutOfRange(id, raw, entry.getMinValue(), entry.getMaxValue());
                 }
                 values.put(id, entry.getDefaultValue());
             }
 
-            // Lock noReload entries after first load
             if (firstLoad && entry.isNoReload()) {
                 lockedKeys.add(id);
             }
@@ -241,7 +227,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
     private Object convert(Object raw,
                            ConfigEntry<?> entry)
     {
-        return ValueConverter.convert(raw, entry.getValueType());
+        return valueConverter.convert(raw, entry.getValueType());
     }
 
     private boolean checkRange(Object value,
@@ -253,13 +239,13 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         // For lists, check each element
         if (value instanceof List<?> list) {
             for (Object item : list) {
-                if (!ValueConverter.inRange(item, entry.getMinValue(), entry.getMaxValue())) {
+                if (!valueConverter.inRange(item, entry.getMinValue(), entry.getMaxValue())) {
                     return false;
                 }
             }
             return true;
         }
-        return ValueConverter.inRange(value, entry.getMinValue(), entry.getMaxValue());
+        return valueConverter.inRange(value, entry.getMinValue(), entry.getMaxValue());
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -477,7 +463,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
             if (value == null) {
                 values.put(entry.getId(), entry.getDefaultValue());
             } else {
-                Object converted = ValueConverter.convert(value, entry.getValueType());
+                Object converted = valueConverter.convert(value, entry.getValueType());
                 if (converted == null) {
                     throw new IllegalArgumentException(
                             "Cannot convert value for entry '" + entry.getId() + "': " + value);

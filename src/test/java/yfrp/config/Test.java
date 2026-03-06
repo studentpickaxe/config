@@ -12,8 +12,12 @@ public class Test {
     public static void main(String[] args) throws IOException {
         // JSON5 格式
         ConfigManager<AppConfig> cfg = new ConfigManager<>(
-                Path.of("config.json5"), ConfigFormat.JSON5, AppConfig.class);
-        cfg.load();  // 不存在则自动创建含默认值的文件
+                Path.of("config.json5"),
+                ConfigFormat.JSON5,
+                AppConfig.class,
+                null
+        );
+        cfg.reload();  // 不存在则自动创建含默认值的文件
 
         // 读取
         String         name    = cfg.getString(AppConfig.APP_NAME);
@@ -22,10 +26,9 @@ public class Test {
         List<String>   hosts   = cfg.getStringList(AppConfig.ALLOWED_HOSTS);
 
         // 重载（noReload 项不会更新）
-        cfg.load();
+        cfg.reload();
 
         // 运行时修改 + 保存
         cfg.set(AppConfig.SERVER_PORT, 9090);
-        cfg.save();
     }
 }

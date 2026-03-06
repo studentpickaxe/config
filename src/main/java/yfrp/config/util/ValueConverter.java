@@ -1,8 +1,7 @@
 package yfrp.config.util;
 
 import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import yfrp.config.core.ConfigEventHandler;
 import yfrp.config.type.ConfigDateTime;
 import yfrp.config.type.ConfigDuration;
 import yfrp.config.type.ConfigValueType;
@@ -23,12 +22,10 @@ import java.util.Map;
  * - DURATION / DATETIME：尝试解析字符串<br>
  * - LIST_*：对每个元素单独转换，转换失败的元素丢弃
  */
-public final class ValueConverter {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(ValueConverter.class);
-
-    private ValueConverter() {
-    }
+public record ValueConverter(
+        @Nullable ConfigEventHandler handler
+)
+{
 
     /**
      * 将 rawValue 转换为 type 对应的 Java 类型。<br>
@@ -39,8 +36,8 @@ public final class ValueConverter {
      * @return 转换后的值，转换失败返回 null / converted value, null if conversion fails
      */
     @Nullable
-    public static Object convert(@Nullable Object raw,
-                                 ConfigValueType type)
+    public Object convert(@Nullable Object raw,
+                          ConfigValueType type)
     {
         if (raw == null) {
             return null;
@@ -67,7 +64,7 @@ public final class ValueConverter {
     // ── Scalar converters ─────────────────────────────────────────────────────
 
     @Nullable
-    public static Long toLong(@Nullable Object raw) {
+    public Long toLong(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -77,13 +74,15 @@ public final class ValueConverter {
         try {
             return Long.parseLong(raw.toString().trim());
         } catch (NumberFormatException e) {
-            LOGGER.debug("Discarding non-long value: {}", raw);
+            if (handler != null) {
+                handler.onConversionFailed("LONG", raw);
+            }
             return null;
         }
     }
 
     @Nullable
-    public static Integer toInt(@Nullable Object raw) {
+    public Integer toInt(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -93,13 +92,15 @@ public final class ValueConverter {
         try {
             return Integer.parseInt(raw.toString().trim());
         } catch (NumberFormatException e) {
-            LOGGER.debug("Discarding non-int value: {}", raw);
+            if (handler != null) {
+                handler.onConversionFailed("INT", raw);
+            }
             return null;
         }
     }
 
     @Nullable
-    public static Double toDouble(@Nullable Object raw) {
+    public Double toDouble(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -109,13 +110,15 @@ public final class ValueConverter {
         try {
             return Double.parseDouble(raw.toString().trim());
         } catch (NumberFormatException e) {
-            LOGGER.debug("Discarding non-double value: {}", raw);
+            if (handler != null) {
+                handler.onConversionFailed("DOUBLE", raw);
+            }
             return null;
         }
     }
 
     @Nullable
-    public static Boolean toBoolean(@Nullable Object raw) {
+    public Boolean toBoolean(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -129,12 +132,14 @@ public final class ValueConverter {
         if (s.equals("false") || s.equals("0")) {
             return false;
         }
-        LOGGER.debug("Discarding non-boolean value: {}", raw);
+        if (handler != null) {
+            handler.onConversionFailed("BOOLEAN", raw);
+        }
         return null;
     }
 
     @Nullable
-    public static ConfigDuration toDuration(@Nullable Object raw) {
+    public ConfigDuration toDuration(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -144,13 +149,15 @@ public final class ValueConverter {
         try {
             return ConfigDuration.parse(raw.toString());
         } catch (Exception e) {
-            LOGGER.debug("Discarding non-duration value: {}", raw);
+            if (handler != null) {
+                handler.onConversionFailed("DURATION", raw);
+            }
             return null;
         }
     }
 
     @Nullable
-    public static ConfigDateTime toDateTime(@Nullable Object raw) {
+    public ConfigDateTime toDateTime(@Nullable Object raw) {
         if (raw == null) {
             return null;
         }
@@ -160,16 +167,35 @@ public final class ValueConverter {
         try {
             return ConfigDateTime.parse(raw.toString());
         } catch (Exception e) {
-            LOGGER.debug("Discarding non-datetime value: {}", raw);
+            if (handler != null) {
+                handler.onConversionFailed("DATETIME", raw);
+            }
             return null;
         }
+    }
+
+    // ── Map converter ─────────────────────────────────────────────────────────
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> toMap(@Nullable Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof Map<?, ?> m) {
+            return (Map<String, Object>) m;
+        }
+        if (handler != null) {
+            handler.onConversionFailed("MAP", raw);
+        }
+        return null;
     }
 
     // ── List converter ────────────────────────────────────────────────────────
 
     @Nullable
-    public static List<Object> toList(@Nullable Object raw,
-                                      ConfigValueType elementType)
+    public List<Object> toList(@Nullable Object raw,
+                               ConfigValueType elementType)
     {
         if (raw == null) {
             return null;
@@ -187,25 +213,12 @@ public final class ValueConverter {
             if (converted != null) {
                 result.add(converted);
             } else {
-                LOGGER.debug("Dropping list element that failed conversion: {}", item);
+                if (handler != null) {
+                    handler.onListElementConversionFailed(elementType.name().toUpperCase(), item);
+                }
             }
         }
         return result;
-    }
-
-    // ── Map converter ─────────────────────────────────────────────────────────
-
-    @Nullable
-    @SuppressWarnings("unchecked")
-    public static Map<String, Object> toMap(@Nullable Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        if (raw instanceof Map<?, ?> m) {
-            return (Map<String, Object>) m;
-        }
-        LOGGER.debug("Discarding non-map value: {}", raw);
-        return null;
     }
 
     // ── Range check ───────────────────────────────────────────────────────────
@@ -215,23 +228,17 @@ public final class ValueConverter {
      * Check if value is within [min, max] range (null means unlimited).
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
-    public static boolean inRange(@Nullable Object value,
-                                  @Nullable Comparable min,
-                                  @Nullable Comparable max)
+    public boolean inRange(@Nullable Object value,
+                           @Nullable Comparable min,
+                           @Nullable Comparable max)
     {
         if (value == null) {
             return true;
         }
-        if (!(value instanceof Comparable)) {
+        if (!(value instanceof Comparable v)) {
             return true; // non-comparable types skip check
         }
-        Comparable v = (Comparable) value;
-        if (min != null && v.compareTo(min) < 0) {
-            return false;
-        }
-        if (max != null && v.compareTo(max) > 0) {
-            return false;
-        }
-        return true;
+        return (min == null || v.compareTo(min) >= 0) &&
+               (max == null || v.compareTo(max) <= 0);
     }
 }
