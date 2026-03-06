@@ -88,6 +88,10 @@ public record ConfigDuration(long totalSeconds)
         return totalSeconds % 60L;
     }
 
+    public long get() {
+        return totalSeconds;
+    }
+
     /**
      * 格式：(((天d )时h )分min )秒s
      * <p>
