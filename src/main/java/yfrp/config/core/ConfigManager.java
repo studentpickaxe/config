@@ -203,7 +203,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
                 values.put(id, converted);
             } else {
                 if (raw != null && handler != null) {
-                    handler.onOutOfRange(id, raw, entry.getMinValue(), entry.getMaxValue());
+                    handler.onOutOfRange(id, raw, entry.getMinValue(), entry.getMaxValue(), entry.getDefaultValue());
                 }
                 values.put(id, entry.getDefaultValue());
             }

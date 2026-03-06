@@ -29,15 +29,16 @@ public interface ConfigEventHandler {
      * 某配置项的值超出范围，已回退到默认值。<br>
      * Entry value out of range; falling back to default.
      *
-     * @param id    配置项 id / entry id
-     * @param raw   文件中读取到的原始值 / raw value from file
-     * @param min   最小值（null 表示无限制）/ min value (null = no limit)
-     * @param max   最大值（null 表示无限制）/ max value (null = no limit)
+     * @param id  配置项 id / entry id
+     * @param raw 文件中读取到的原始值 / raw value from file
+     * @param min 最小值（null 表示无限制）/ min value (null = no limit)
+     * @param max 最大值（null 表示无限制）/ max value (null = no limit)
      */
     void onOutOfRange(@NotNull String id,
                       @Nullable Object raw,
                       @Nullable Object min,
-                      @Nullable Object max);
+                      @Nullable Object max,
+                      @NotNull Object defaultVal);
 
     /**
      * ValueConverter 转换标量时类型不匹配，已丢弃该值。<br>

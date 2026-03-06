@@ -21,16 +21,18 @@ import java.util.Map;
  */
 public final class ConfigParser {
 
-    private ConfigParser() {}
-
     /**
      * 解析文本，返回平铺 Map。
      */
-    public static Map<String, Object> parse(String text, ConfigFormat format) {
-        if (text == null || text.isBlank()) return new LinkedHashMap<>();
+    public static Map<String, Object> parse(String text,
+                                            ConfigFormat format)
+    {
+        if (text == null || text.isBlank()) {
+            return new LinkedHashMap<>();
+        }
         return switch (format) {
             case JSON5 -> parseJson5(text);
-            case YAML  -> parseYaml(text);
+            case YAML -> parseYaml(text);
         };
     }
 
@@ -38,7 +40,7 @@ public final class ConfigParser {
 
     private static Map<String, Object> parseJson5(String text) {
         try {
-            JsonValue root = JsonValue.readHjson(text);
+            JsonValue           root = JsonValue.readHjson(text);
             Map<String, Object> flat = new LinkedHashMap<>();
             if (root.isObject()) {
                 flattenJson(root.asObject(), "", flat);
@@ -100,16 +102,22 @@ public final class ConfigParser {
     }
 
     private static Object jsonScalar(JsonValue val) {
-        if (val.isNull())    return null;
-        if (val.isBoolean()) return val.asBoolean();
-        if (val.isNumber())  {
+        if (val.isNull()) {
+            return null;
+        }
+        if (val.isBoolean()) {
+            return val.asBoolean();
+        }
+        if (val.isNumber()) {
             double d = val.asDouble();
             if (d == Math.floor(d) && !Double.isInfinite(d) && Math.abs(d) < Long.MAX_VALUE) {
                 return (long) d;
             }
             return d;
         }
-        if (val.isString())  return val.asString();
+        if (val.isString()) {
+            return val.asString();
+        }
         return val.toString();
     }
 
@@ -118,9 +126,11 @@ public final class ConfigParser {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> parseYaml(String text) {
         try {
-            Yaml yaml = new Yaml();
+            Yaml   yaml   = new Yaml();
             Object parsed = yaml.load(new StringReader(text));
-            if (parsed == null) return new LinkedHashMap<>();
+            if (parsed == null) {
+                return new LinkedHashMap<>();
+            }
             if (!(parsed instanceof Map<?, ?> map)) {
                 throw new RuntimeException("YAML root must be a mapping");
             }
