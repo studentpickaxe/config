@@ -76,8 +76,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
      */
     private final Set<String>         lockedKeys = new HashSet<>();
 
-    private final    ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private volatile boolean       loaded = false;
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     // ══════════════════════════════════════════════════════════════════════════
     // Constructor
@@ -92,6 +91,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
                          @NotNull ConfigFormat format,
                          @NotNull Class<E> enumClass,
                          @Nullable ConfigEventHandler handler)
+            throws IOException
     {
         this.configPath = Objects.requireNonNull(configPath, "configPath");
         this.format = Objects.requireNonNull(format, "format");
@@ -102,6 +102,8 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         this.handler = handler;
         this.valueConverter = new ValueConverter(handler);
         validateEntries();
+
+        load(true);
     }
 
     /**
@@ -122,13 +124,19 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
 // Reload（唯一的公开 load/save 入口）
 // ══════════════════════════════════════════════════════════════════════════
 
+    public void reload()
+            throws IOException
+    {
+        load(false);
+    }
+
     /**
      * 重载配置：若文件不存在则以默认值创建，否则读取文件并回写（补全缺失键/刷新注释）。<br>
      * Reload config: create with defaults if file absent, otherwise read then write back.
      *
      * @throws IOException on I/O failure
      */
-    public void reload()
+    private void load(boolean first)
             throws IOException
     {
         rwLock.writeLock().lock();
@@ -137,7 +145,6 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
             if (!Files.exists(configPath)) {
                 applyDefaults(true);
                 saveInternal();
-                loaded = true;
                 if (handler != null) {
                     handler.onFileCreated(abs);
                 }
@@ -145,8 +152,7 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
             }
             String              text    = Files.readString(configPath, StandardCharsets.UTF_8);
             Map<String, Object> rawFlat = ConfigParser.parse(text, format);
-            mergeValues(rawFlat, !loaded);
-            loaded = true;
+            mergeValues(rawFlat, first);
             saveInternal();
             if (handler != null) {
                 handler.onReloaded(abs);
@@ -501,14 +507,6 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
     }
 
     /**
-     * 是否已加载<br>
-     * Whether config has been loaded
-     */
-    public boolean isLoaded() {
-        return loaded;
-    }
-
-    /**
      * 获取配置文件路径<br>
      * Get config file path
      */
@@ -538,11 +536,5 @@ public final class ConfigManager<E extends Enum<E> & ConfigEntryProvider> {
         } finally {
             rwLock.readLock().unlock();
         }
-    }
-
-    @Override
-    public String toString() {
-        return "ConfigManager{path=" + configPath + ", format=" + format +
-               ", entries=" + enumConstants.length + ", loaded=" + loaded + "}";
     }
 }
