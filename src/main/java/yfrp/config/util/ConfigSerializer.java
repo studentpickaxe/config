@@ -188,7 +188,7 @@ public final class ConfigSerializer {
             } else {
                 // Write comment block
                 if (meta != null) {
-                    writeJson5Comments(sb, meta, childIndent);
+                    writeComments(JSON5_COMMENTS, sb, meta, childIndent);
                 }
                 // Write value line
                 String valueLine = jsonKey(key) + ": " + toJson5Value(val, childIndent);
@@ -201,27 +201,6 @@ public final class ConfigSerializer {
         }
         sb.append(indent).append("}");
         return sb.toString();
-    }
-
-    private static void writeJson5Comments(StringBuilder sb,
-                                           ConfigEntry<?> meta,
-                                           String indent)
-    {
-        // 1. 用户注释
-        if (meta.getComment() != null) {
-            for (String line : meta.getComment().split("\n", -1)) {
-                sb.append(indent).append(JSON5_COMMENTS).append(line).append("\n");
-            }
-        }
-        // 2. noReload 双语标注
-        if (meta.isNoReload()) {
-            sb.append(indent).append(JSON5_COMMENTS).append(NO_RELOAD_CN).append("\n");
-            sb.append(indent).append(JSON5_COMMENTS).append(NO_RELOAD_EN).append("\n");
-        }
-        // 3. 范围标注
-        for (String line : formatRange(meta)) {
-            sb.append(indent).append(JSON5_COMMENTS).append(line).append("\n");
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -317,7 +296,8 @@ public final class ConfigSerializer {
     }
 
     private static String escapeJson(String s) {
-        return s.replace("\\", "\\\\")
+        return normalizeLineEndings(s)
+                .replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\t", "\\t");
@@ -365,7 +345,7 @@ public final class ConfigSerializer {
             } else {
                 // Write comment block
                 if (meta != null) {
-                    writeYamlComments(sb, meta, indent);
+                    writeComments(YAML_COMMENTS, sb, meta, indent);
                 }
                 // Write value line
                 sb.append(indent).append(yamlKey(key)).append(": ");
@@ -378,27 +358,6 @@ public final class ConfigSerializer {
             }
         }
         return sb.toString();
-    }
-
-    private static void writeYamlComments(StringBuilder sb,
-                                          ConfigEntry<?> meta,
-                                          String indent)
-    {
-        // 1. 用户注释
-        if (meta.getComment() != null) {
-            for (String line : meta.getComment().split("\n", -1)) {
-                sb.append(indent).append(YAML_COMMENTS).append(line).append("\n");
-            }
-        }
-        // 2. noReload 双语标注
-        if (meta.isNoReload()) {
-            sb.append(indent).append(YAML_COMMENTS).append(NO_RELOAD_CN).append("\n");
-            sb.append(indent).append(YAML_COMMENTS).append(NO_RELOAD_EN).append("\n");
-        }
-        // 3. 范围标注
-        for (String line : formatRange(meta)) {
-            sb.append(indent).append(YAML_COMMENTS).append(line).append("\n");
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -474,6 +433,8 @@ public final class ConfigSerializer {
     private static String yamlStringValue(String s,
                                           String indent)
     {
+        s = normalizeLineEndings(s);
+
         // 多行：使用 | 块标量
         if (s.contains("\n")) {
             String        childIndent = indent + INDENT;
@@ -535,6 +496,41 @@ public final class ConfigSerializer {
         return key;
     }
 
+    private static void writeComments(String commentsPrefix,
+                                      StringBuilder sb,
+                                      ConfigEntry<?> meta,
+                                      String indent)
+    {
+        List<String> commentList = new ArrayList<>(3);
+
+        if (!meta.getComment().isBlank()) {
+            var sb2 = new StringBuilder();
+
+            for (String line : meta.getComment().split("\n", -1)) {
+                sb2.append(indent).append(commentsPrefix).append(line).append("\n");
+            }
+
+            commentList.add(sb2.toString());
+        }
+
+        if (meta.isNoReload()) {
+            commentList.add(indent + commentsPrefix + NO_RELOAD_CN + "\n" +
+                            indent + commentsPrefix + NO_RELOAD_EN + "\n");
+        }
+
+        if (meta.hasRange()) {
+            var sb2 = new StringBuilder();
+
+            for (String line : formatRange(meta)) {
+                sb2.append(indent).append(commentsPrefix).append(line).append("\n");
+            }
+
+            commentList.add(sb2.toString());
+        }
+
+        sb.append(String.join("\n", commentList));
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // Range formatting
     // ══════════════════════════════════════════════════════════════════════════
@@ -593,8 +589,8 @@ public final class ConfigSerializer {
             int fracWidth = Math.max(minFracLen, maxFracLen);
 
             return List.of(
-                    MIN + alignNumber(minStr, minIntLen, minFracLen, intWidth, fracWidth),
-                    MAX + alignNumber(maxStr, maxIntLen, maxFracLen, intWidth, fracWidth)
+                    MIN + alignNumber(minStr, minIntLen, intWidth, fracWidth),
+                    MAX + alignNumber(maxStr, maxIntLen, intWidth, fracWidth)
             );
         }
 
@@ -607,7 +603,6 @@ public final class ConfigSerializer {
 
     private static String alignNumber(String s,
                                       int ownIntLen,
-                                      int ownFracLen,
                                       int intWidth,
                                       int fracWidth)
     {

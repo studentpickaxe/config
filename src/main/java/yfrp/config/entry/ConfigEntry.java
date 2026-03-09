@@ -23,8 +23,8 @@ public final class ConfigEntry<T> {
      */
     private static final Pattern SEGMENT_PATTERN = Pattern.compile("^(?!\\s*$).+$");
 
-    private final           String             id;
-    private final @Nullable String             comment;
+    private final @NotNull  String             id;
+    private final @NotNull  String             comment;
     private final           boolean            noReload;
     private final           T                  defaultValue;
     private final           ConfigValueType    valueType;
@@ -34,7 +34,7 @@ public final class ConfigEntry<T> {
     @SuppressWarnings("unchecked")
     private ConfigEntry(Builder<T> builder) {
         this.id = validateId(builder.id);
-        this.comment = builder.comment;
+        this.comment = builder.commentBuilder.toString();
         this.noReload = builder.noReload;
         this.defaultValue = Objects.requireNonNull(builder.defaultValue, "defaultValue must not be null");
         this.valueType = Objects.requireNonNull(builder.valueType, "valueType must not be null");
@@ -87,7 +87,7 @@ public final class ConfigEntry<T> {
      * 注释，null 表示无<br>
      * Comment, null means none
      */
-    @Nullable
+    @NotNull
     public String getComment() {
         return comment;
     }
@@ -159,9 +159,9 @@ public final class ConfigEntry<T> {
         private final     ConfigValueType valueType;
         private final     T               defaultValue;
         private final     boolean         noReload;
-        private @Nullable String          comment  = null;
-        private @Nullable Object          minValue = null;
-        private @Nullable Object          maxValue = null;
+        private final     StringBuilder   commentBuilder = new StringBuilder();
+        private @Nullable Object          minValue       = null;
+        private @Nullable Object          maxValue       = null;
 
         private Builder(String id,
                         ConfigValueType valueType,
@@ -175,12 +175,27 @@ public final class ConfigEntry<T> {
         }
 
         public Builder<T> comment(@Nullable String comment) {
-            this.comment = comment;
+            if (comment == null) {
+                return this;
+            }
+
+            if (!this.commentBuilder.isEmpty()) {
+                this.commentBuilder.append('\n');
+            }
+
+            this.commentBuilder.append(comment);
             return this;
         }
 
-        public Builder<T> comment(@Nullable String @NotNull ... comment) {
-            this.comment = String.join("\n", comment);
+        public Builder<T> comment(@Nullable String @Nullable ... comments) {
+            if (comments == null) {
+                return this;
+            }
+
+            for (String c : comments) {
+                comment(c);
+            }
+
             return this;
         }
 
@@ -202,10 +217,5 @@ public final class ConfigEntry<T> {
         public ConfigEntry<T> build() {
             return new ConfigEntry<>(this);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "ConfigEntry{id='" + id + "', type=" + valueType + ", noReload=" + noReload + '}';
     }
 }
