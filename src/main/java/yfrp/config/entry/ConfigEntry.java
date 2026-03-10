@@ -2,6 +2,8 @@ package yfrp.config.entry;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import yfrp.config.type.ConfigDateTime;
+import yfrp.config.type.ConfigDuration;
 import yfrp.config.type.ConfigValueType;
 
 import java.util.Objects;
@@ -155,17 +157,17 @@ public final class ConfigEntry<T> {
     }
 
     public static final class Builder<T> {
-        private final     String          id;
-        private final     ConfigValueType valueType;
-        private final     T               defaultValue;
-        private final     boolean         noReload;
-        private final     StringBuilder   commentBuilder = new StringBuilder();
-        private @Nullable Object          minValue       = null;
-        private @Nullable Object          maxValue       = null;
+        private final @NotNull String          id;
+        private final @NotNull ConfigValueType valueType;
+        private final @NotNull T               defaultValue;
+        private final          boolean         noReload;
+        private final @NotNull StringBuilder   commentBuilder = new StringBuilder();
+        private @Nullable      Object          minValue       = null;
+        private @Nullable      Object          maxValue       = null;
 
-        private Builder(String id,
-                        ConfigValueType valueType,
-                        T defaultValue,
+        private Builder(@NotNull String id,
+                        @NotNull ConfigValueType valueType,
+                        @NotNull T defaultValue,
                         boolean noReload)
         {
             this.id = id;
@@ -192,7 +194,7 @@ public final class ConfigEntry<T> {
                 return this;
             }
 
-            for (String c : comments) {
+            for (@Nullable String c : comments) {
                 comment(c);
             }
 
@@ -215,7 +217,76 @@ public final class ConfigEntry<T> {
         }
 
         public ConfigEntry<T> build() {
+            validateType(id, valueType, defaultValue);
             return new ConfigEntry<>(this);
+        }
+
+        /**
+         * 校验默认值是否匹配声明的类型
+         *
+         * @param id    配置项 ID，用于异常提示
+         * @param type  预期的配置类型
+         * @param value 待校验的默认值
+         */
+        private void validateType(@NotNull String id,
+                                  @NotNull ConfigValueType type,
+                                  @NotNull Object value)
+        {
+            boolean valid = switch (type) {
+                // 基础类型
+                case STRING -> value instanceof String;
+                case INT -> value instanceof Integer;
+                case LONG -> value instanceof Long || value instanceof Integer; // 允许向上转型
+                case DOUBLE -> value instanceof Double || value instanceof Float;
+                case BOOLEAN -> value instanceof Boolean;
+
+                case DURATION -> value instanceof ConfigDuration;
+                case DATETIME -> value instanceof ConfigDateTime;
+
+                case LIST_STRING -> checkList(value, String.class);
+                case LIST_INT -> checkList(value, Integer.class);
+                case LIST_LONG -> checkList(value, Long.class, Integer.class);
+                case LIST_DOUBLE -> checkList(value, Double.class, Float.class);
+                case LIST_BOOLEAN -> checkList(value, Boolean.class);
+                case LIST_DURATION -> checkList(value, ConfigDuration.class);
+                case LIST_DATETIME -> checkList(value, ConfigDateTime.class);
+
+                case MAP -> value instanceof java.util.Map;
+            };
+
+            if (!valid) {
+                throw new IllegalArgumentException(String.format(
+                        "Config '%s' type mismatch: expected %s, but got %s (Value: %s)",
+                        id, type, value.getClass().getSimpleName(), value
+                ));
+            }
+        }
+
+        /**
+         * 辅助校验 List 及其泛型内容
+         */
+        private boolean checkList(Object value,
+                                  Class<?>... allowedClasses)
+        {
+            if (!(value instanceof java.util.List<?> list)) {
+                return false;
+            }
+            // 如果列表为空，默认视为合法（泛型无法在运行时完全确定）
+            if (list.isEmpty()) {
+                return true;
+            }
+            // 校验第一个元素是否在允许的类列表中
+            Object firstElement = list.get(0);
+            if (firstElement == null) {
+                return true;
+            }
+
+            for (Class<?> clazz : allowedClasses) {
+                if (clazz.isInstance(firstElement)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
