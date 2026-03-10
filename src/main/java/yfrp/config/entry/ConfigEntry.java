@@ -183,7 +183,7 @@ public final class ConfigEntry<T> {
                 this.commentBuilder.append('\n');
             }
 
-            this.commentBuilder.append(comment);
+            this.commentBuilder.append(comment.trim());
             return this;
         }
 
