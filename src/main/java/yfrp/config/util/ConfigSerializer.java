@@ -622,8 +622,8 @@ public final class ConfigSerializer {
                                                     ConfigDuration maxD)
     {
         return List.of(
-                MIN + minD.toString(maxD.get()),
-                MAX + maxD
+                MIN + minD.toString(maxD),
+                MAX + maxD.toString(true)
         );
     }
 }

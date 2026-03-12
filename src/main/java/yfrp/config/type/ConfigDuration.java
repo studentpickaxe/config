@@ -102,26 +102,46 @@ public record ConfigDuration(long totalSeconds)
         return totalSeconds;
     }
 
-    /**
-     * 格式：(((天d )时h )分m )秒s
-     * <p>
-     * 高位全为0时省略，但最少保留秒。
-     */
+
+    // without maxValue
     @Override
     public @NotNull String toString() {
-        return toString((Long) null, null);
+        return toString(
+                false
+        );
     }
 
-    public @NotNull String toString(@Nullable Long maxValue) {
-        return toString(maxValue, null);
-    }
-
-    public @NotNull String toString(@Nullable ConfigDuration maxDuration) {
-        return toString(maxDuration, null);
+    public @NotNull String toString(boolean withPadding) {
+        return toString(
+                withPadding,
+                null
+        );
     }
 
     public @NotNull String toString(@Nullable LongFunction<String> longToString) {
-        return toString((Long) null, longToString);
+        return toString(
+                false,
+                longToString
+        );
+    }
+
+    public @NotNull String toString(boolean withPadding,
+                                    @Nullable LongFunction<String> longToString)
+    {
+        return toString(
+                withPadding,
+                null,
+                longToString
+        );
+    }
+
+    // with maxValue
+
+    public @NotNull String toString(@Nullable ConfigDuration maxDuration) {
+        return toString(
+                maxDuration,
+                null
+        );
     }
 
     public @NotNull String toString(@Nullable ConfigDuration maxDuration,
@@ -133,9 +153,33 @@ public record ConfigDuration(long totalSeconds)
         );
     }
 
+    public @NotNull String toString(@Nullable Long maxValue) {
+        return toString(
+                maxValue,
+                null
+        );
+    }
+
     public @NotNull String toString(@Nullable Long maxValue,
                                     @Nullable LongFunction<String> longToString)
     {
+        return toString(
+                true,
+                maxValue,
+                longToString
+        );
+    }
+
+    // toString
+
+    private @NotNull String toString(boolean withPadding,
+                                     @Nullable Long maxValue,
+                                     @Nullable LongFunction<String> longToString)
+    {
+        if (!withPadding) {
+            maxValue = null;
+        }
+
         var isMaxValueValuable = maxValue != null
                                  && maxValue >= 0;
 
@@ -158,39 +202,37 @@ public record ConfigDuration(long totalSeconds)
                 if (maxDayWidth != null) {
                     sb.append(" ".repeat(Math.max(0, maxDayWidth - String.valueOf(d).length())));
                 }
-                sb.append(longToString == null
-                          ? d
-                          : longToString.apply(d));
-                sb.append("d ");
+                appendPaddedUnit(sb, d, false, longToString, "d ");
             } else if (maxDayWidth != null) {
                 sb.append(" ".repeat(maxDayWidth + 2));
             }
         }
         if (maxPrecision >= 2) {
             if (d != 0 || h != 0) {
-                appendPaddedUnit(sb, h, longToString, "h ");
-            } else {
+                appendPaddedUnit(sb, h, withPadding, longToString, "h ");
+            } else if (withPadding) {
                 sb.append(" ".repeat(4));
             }
         }
         if (maxPrecision >= 1) {
             if (d != 0 || h != 0 || m != 0) {
-                appendPaddedUnit(sb, m, longToString, "m ");
-            } else {
+                appendPaddedUnit(sb, m, withPadding, longToString, "m ");
+            } else if (withPadding) {
                 sb.append(" ".repeat(4));
             }
         }
-        appendPaddedUnit(sb, s, longToString, "s");
+        appendPaddedUnit(sb, s, withPadding, longToString, "s");
 
         return sb.toString();
     }
 
     private static void appendPaddedUnit(StringBuilder sb,
                                          long value,
+                                         boolean withPadding,
                                          @Nullable LongFunction<String> longToString,
                                          String unit)
     {
-        if (value < 10) {
+        if (withPadding && value < 10) {
             sb.append(" ");
         }
         sb.append(longToString == null
