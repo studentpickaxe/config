@@ -52,18 +52,24 @@ public record ConfigDuration(long totalSeconds)
             return new ConfigDuration(Long.parseLong(s));
         }
 
-        long    total = 0;
-        Pattern p     = Pattern.compile("(\\d+)\\s*(days|day|d|hours|hour|h|minutes|minute|min|m|seconds|second|s)");
-        Matcher m     = p.matcher(s);
+        long total = 0;
+
+        Pattern p = Pattern.compile("(\\d+)\\s*(days|day|d|hours|hour|h|minutes|minute|min|m|seconds|second|s)");
+        Matcher m = p.matcher(s);
+
         boolean found = false;
         while (m.find()) {
             found = true;
             long v = Long.parseLong(m.group(1));
             switch (m.group(2)) {
-                case "days", "day", "d" -> total += v * 86400L;
-                case "hours", "hour", "h" -> total += v * 3600L;
-                case "minutes", "minute", "min", "m" -> total += v * 60L;
-                case "seconds", "second", "s" -> total += v;
+                case "days", "day", "d" ->
+                        total += v * 86400L;
+                case "hours", "hour", "h" ->
+                        total += v * 3600L;
+                case "minutes", "minute", "min", "m" ->
+                        total += v * 60L;
+                case "seconds", "second", "s" ->
+                        total += v;
             }
         }
         if (!found) {
@@ -99,7 +105,11 @@ public record ConfigDuration(long totalSeconds)
      */
     @Override
     public @NotNull String toString() {
-        long          d  = getDays(), h = getHours(), min = getMinutes(), s = getSeconds();
+        long d = getDays();
+        long h = getHours();
+        long m = getMinutes();
+        long s = getSeconds();
+
         StringBuilder sb = new StringBuilder();
         if (d != 0) {
             sb.append(d).append("d ");
@@ -107,8 +117,8 @@ public record ConfigDuration(long totalSeconds)
         if (d != 0 || h != 0) {
             sb.append(h).append("h ");
         }
-        if (d != 0 || h != 0 || min != 0) {
-            sb.append(min).append("m ");
+        if (d != 0 || h != 0 || m != 0) {
+            sb.append(m).append("m ");
         }
         sb.append(s).append("s");
         return sb.toString().trim();
