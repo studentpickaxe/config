@@ -656,7 +656,6 @@ public final class ConfigSerializer {
     {
         StringBuilder sb = new StringBuilder();
         if (hasDays) {
-            // 值为0且低于最高有效位时，用空格占位而不是"0d"
             if (d != 0) {
                 sb.append(String.format("%" + dW + "d", d)).append("d ");
             } else {
@@ -672,9 +671,9 @@ public final class ConfigSerializer {
         }
         if (hasMin) {
             if (d != 0 || h != 0 || min != 0) {
-                sb.append(String.format("%" + minW + "d", min)).append("min ");
+                sb.append(String.format("%" + minW + "d", min)).append("m ");
             } else {
-                sb.append(" ".repeat(minW + "min ".length())); // "min " 四字符
+                sb.append(" ".repeat(minW + "m ".length()));
             }
         }
         sb.append(String.format("%" + sW + "d", s)).append("s");
