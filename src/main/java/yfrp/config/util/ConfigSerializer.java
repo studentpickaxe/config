@@ -621,64 +621,9 @@ public final class ConfigSerializer {
     private static List<String> formatDurationRange(ConfigDuration minD,
                                                     ConfigDuration maxD)
     {
-        long minDays = minD.getDays(), maxDays = maxD.getDays();
-        long minH    = minD.getHours(), maxH = maxD.getHours();
-        long minMin  = minD.getMinutes(), maxMin = maxD.getMinutes();
-        long minSec  = minD.getSeconds(), maxSec = maxD.getSeconds();
-
-        boolean hasDays = minDays != 0 || maxDays != 0;
-        boolean hasH    = hasDays || minH != 0 || maxH != 0;
-        boolean hasMin  = hasH || minMin != 0 || maxMin != 0;
-        // seconds always present
-
-        int dW   = hasDays ? Math.max(String.valueOf(minDays).length(), String.valueOf(maxDays).length()) : 0;
-        int hW   = hasH ? Math.max(String.valueOf(minH).length(), String.valueOf(maxH).length()) : 0;
-        int minW = hasMin ? Math.max(String.valueOf(minMin).length(), String.valueOf(maxMin).length()) : 0;
-        int sW   = Math.max(String.valueOf(minSec).length(), String.valueOf(maxSec).length());
-
         return List.of(
-                MIN + formatDurationAligned(minDays, minH, minMin, minSec, hasDays, hasH, hasMin, dW, hW, minW, sW),
-                MAX + formatDurationAligned(maxDays, maxH, maxMin, maxSec, hasDays, hasH, hasMin, dW, hW, minW, sW)
+                MIN + minD.toString(maxD.get()),
+                MAX + maxD
         );
     }
-
-    private static String formatDurationAligned(long d,
-                                                long h,
-                                                long min,
-                                                long s,
-                                                boolean hasDays,
-                                                boolean hasH,
-                                                boolean hasMin,
-                                                int dW,
-                                                int hW,
-                                                int minW,
-                                                int sW)
-    {
-        StringBuilder sb = new StringBuilder();
-        if (hasDays) {
-            if (d != 0) {
-                sb.append(String.format("%" + dW + "d", d)).append("d ");
-            } else {
-                sb.append(" ".repeat(dW + "d ".length()));
-            }
-        }
-        if (hasH) {
-            if (d != 0 || h != 0) {
-                sb.append(String.format("%" + hW + "d", h)).append("h ");
-            } else {
-                sb.append(" ".repeat(hW + "h ".length()));
-            }
-        }
-        if (hasMin) {
-            if (d != 0 || h != 0 || min != 0) {
-                sb.append(String.format("%" + minW + "d", min)).append("m ");
-            } else {
-                sb.append(" ".repeat(minW + "m ".length()));
-            }
-        }
-        sb.append(String.format("%" + sW + "d", s)).append("s");
-
-        return sb.toString();
-    }
-
 }

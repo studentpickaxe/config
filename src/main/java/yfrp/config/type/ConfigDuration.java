@@ -1,7 +1,9 @@
 package yfrp.config.type;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.function.LongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,6 +17,12 @@ import java.util.regex.Pattern;
 public record ConfigDuration(long totalSeconds)
         implements Comparable<ConfigDuration>
 {
+
+    public ConfigDuration(long totalSeconds) {
+        this.totalSeconds = totalSeconds > 0
+                            ? totalSeconds
+                            : 0;
+    }
 
     public static ConfigDuration ofSeconds(long seconds) {
         return new ConfigDuration(seconds);
@@ -62,14 +70,10 @@ public record ConfigDuration(long totalSeconds)
             found = true;
             long v = Long.parseLong(m.group(1));
             switch (m.group(2)) {
-                case "days", "day", "d" ->
-                        total += v * 86400L;
-                case "hours", "hour", "h" ->
-                        total += v * 3600L;
-                case "minutes", "minute", "min", "m" ->
-                        total += v * 60L;
-                case "seconds", "second", "s" ->
-                        total += v;
+                case "days", "day", "d" -> total += v * 86400L;
+                case "hours", "hour", "h" -> total += v * 3600L;
+                case "minutes", "minute", "min", "m" -> total += v * 60L;
+                case "seconds", "second", "s" -> total += v;
             }
         }
         if (!found) {
@@ -105,39 +109,131 @@ public record ConfigDuration(long totalSeconds)
      */
     @Override
     public @NotNull String toString() {
+        return toString((Long) null, null);
+    }
+
+    public @NotNull String toString(@Nullable Long maxValue) {
+        return toString(maxValue, null);
+    }
+
+    public @NotNull String toString(@Nullable ConfigDuration maxDuration) {
+        return toString(maxDuration, null);
+    }
+
+    public @NotNull String toString(@Nullable LongFunction<String> longToString) {
+        return toString((Long) null, longToString);
+    }
+
+    public @NotNull String toString(@Nullable ConfigDuration maxDuration,
+                                    @Nullable LongFunction<String> longToString)
+    {
+        return toString(
+                maxDuration == null ? null : maxDuration.get(),
+                longToString
+        );
+    }
+
+    public @NotNull String toString(@Nullable Long maxValue,
+                                    @Nullable LongFunction<String> longToString)
+    {
+        var isMaxValueValuable = maxValue != null
+                                 && maxValue >= 0;
+
+        var maxPrecision = isMaxValueValuable
+                           ? getMaxPrecision(this.get(), maxValue)
+                           : getMaxPrecision(this.get());
+        Integer maxDayWidth = isMaxValueValuable
+                              ? String.valueOf(maxValue / 86400).length()
+                              : null;
+
         long d = getDays();
         long h = getHours();
         long m = getMinutes();
         long s = getSeconds();
 
         StringBuilder sb = new StringBuilder();
-        if (d != 0) {
-            sb.append(d).append("d ");
+
+        if (maxPrecision >= 3) {
+            if (d != 0) {
+                if (maxDayWidth != null) {
+                    sb.append(" ".repeat(Math.max(0, maxDayWidth - String.valueOf(d).length())));
+                }
+                sb.append(longToString == null
+                          ? d
+                          : longToString.apply(d));
+                sb.append("d ");
+            } else if (maxDayWidth != null) {
+                sb.append(" ".repeat(maxDayWidth + 2));
+            }
         }
-        if (d != 0 || h != 0) {
-            sb.append(h).append("h ");
+        if (maxPrecision >= 2) {
+            if (d != 0 || h != 0) {
+                appendPaddedUnit(sb, h, longToString, "h ");
+            } else {
+                sb.append(" ".repeat(4));
+            }
         }
-        if (d != 0 || h != 0 || m != 0) {
-            sb.append(m).append("m ");
+        if (maxPrecision >= 1) {
+            if (d != 0 || h != 0 || m != 0) {
+                appendPaddedUnit(sb, m, longToString, "m ");
+            } else {
+                sb.append(" ".repeat(4));
+            }
         }
-        sb.append(s).append("s");
-        return sb.toString().trim();
+        appendPaddedUnit(sb, s, longToString, "s");
+
+        return sb.toString();
+    }
+
+    private static void appendPaddedUnit(StringBuilder sb,
+                                         long value,
+                                         @Nullable LongFunction<String> longToString,
+                                         String unit)
+    {
+        if (value < 10) {
+            sb.append(" ");
+        }
+        sb.append(longToString == null
+                  ? value
+                  : longToString.apply(value));
+        sb.append(unit);
+    }
+
+    /**
+     * @return {@code 0} - seconds <br>
+     * {@code 1} - minutes <br>
+     * {@code 2} - hours <br>
+     * {@code 3} - days
+     */
+    private static int getMaxPrecision(long value) {
+        if (value < 60) {
+            // seconds
+            return 0;
+        }
+        if (value < 3600) {
+            // minutes
+            return 1;
+        }
+        if (value < 86400) {
+            // hours
+            return 2;
+        }
+        // days
+        return 3;
+    }
+
+    private static int getMaxPrecision(long v1,
+                                       long v2)
+    {
+        return Math.max(
+                getMaxPrecision(v1),
+                getMaxPrecision(v2)
+        );
     }
 
     @Override
     public int compareTo(ConfigDuration other) {
         return Long.compare(this.totalSeconds, other.totalSeconds);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (!(o instanceof ConfigDuration that)) {
-            return false;
-        }
-        return totalSeconds == that.totalSeconds;
     }
 
 }

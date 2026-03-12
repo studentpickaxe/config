@@ -57,15 +57,4 @@ public record ConfigDateTime(LocalDateTime value)
         return this.value.compareTo(other.value);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (!(o instanceof ConfigDateTime that)) {
-            return false;
-        }
-        return value.equals(that.value);
-    }
-
 }

@@ -208,9 +208,16 @@ public final class ConfigEntry<T> {
          * null 表示该侧无限制<br>
          * null means no limit on that side.
          */
+        @SuppressWarnings("unchecked")
         public Builder<T> range(@Nullable Comparable<?> min,
                                 @Nullable Comparable<?> max)
         {
+            if (min != null && max != null) {
+                if (((Comparable<Object>) min).compareTo(max) > 0) {
+                    throw new IllegalArgumentException("min < max: min=" + min + ", max=" + max);
+                }
+            }
+
             this.minValue = min;
             this.maxValue = max;
             return this;
