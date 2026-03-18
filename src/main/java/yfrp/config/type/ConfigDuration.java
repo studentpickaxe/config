@@ -138,10 +138,9 @@ public record ConfigDuration(long totalSeconds)
     // with maxValue
 
     public @NotNull String toString(@Nullable ConfigDuration maxDuration) {
-        return toString(
-                maxDuration,
-                null
-        );
+        return this == maxDuration
+               ? toString(maxDuration, null)
+               : toString(true);
     }
 
     public @NotNull String toString(@Nullable ConfigDuration maxDuration,
