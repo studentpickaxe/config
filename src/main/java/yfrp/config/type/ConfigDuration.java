@@ -138,9 +138,10 @@ public record ConfigDuration(long totalSeconds)
     // with maxValue
 
     public @NotNull String toString(@Nullable ConfigDuration maxDuration) {
-        return this == maxDuration
-               ? toString(maxDuration, null)
-               : toString(true);
+        return toString(
+                maxDuration,
+                null
+        );
     }
 
     public @NotNull String toString(@Nullable ConfigDuration maxDuration,
@@ -180,7 +181,7 @@ public record ConfigDuration(long totalSeconds)
         }
 
         var isMaxValueValuable = maxValue != null
-                                 && maxValue >= 0;
+                                 && maxValue > get();
 
         var maxPrecision = isMaxValueValuable
                            ? getMaxPrecision(this.get(), maxValue)
